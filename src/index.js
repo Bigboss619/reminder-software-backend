@@ -25,5 +25,7 @@ app.get("/", (req, res) => {
     res.send("API is running...")
 });
 
-export const handler = serverless(app);
+const handler = serverless(app);
+
+export default handler;
 
