@@ -17,7 +17,7 @@ app.use("/api/assets", assetRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/users", userRoutes);
-app.use("/api", cronRoutes);
+app.use("/api/send-reminder", cronRoutes);
 
 app.use(errorMiddleware);
 
