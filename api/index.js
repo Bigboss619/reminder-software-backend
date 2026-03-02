@@ -1,5 +1,5 @@
 import express from 'express';
-import serverless from "serverless-http";
+import serverless from 'serverless-http';
 import cors from 'cors';
 import assetRoutes from '../src/routes/asset.routes.js';
 import authRoutes from '../src/routes/auth.routes.js';
@@ -25,4 +25,6 @@ app.get("/", (req, res) => {
     res.send("API is running...")
 });
 
-export default serverless(app);
+const handler = serverless(app);
+
+export default handler;
