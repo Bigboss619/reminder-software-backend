@@ -6,7 +6,7 @@ import authRoutes from '../src/routes/auth.routes.js';
 import adminRoutes from '../src/routes/admin.routes.js';
 import userRoutes from '../src/routes/user.routes.js';
 import cronRoutes from '../src/routes/cron.routes.js';
-import errorMiddleware from '../src/middlewares/error.midlleware.js'
+import errorMiddleware from '.u./src/middlewares/error.midlleware.js'
 
 const app = express();
 app.use(cors()); //allow requests from frontend
