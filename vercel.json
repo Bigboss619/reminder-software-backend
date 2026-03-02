@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "src/api/index.js": {
+      "runtime": "nodejs20.x"
+    }
+  },
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "src/api/index.js"
+    }
+  ]
+}
