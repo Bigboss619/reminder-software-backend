@@ -23,7 +23,7 @@ app.use("/api/send-reminder", cronRoutes);
 app.use(errorMiddleware);
 
 app.get("/", (req, res) => {
-    res.send("API is running...")
+    res.json("API is running...")
 });
 
 // const handler = serverless(app);
