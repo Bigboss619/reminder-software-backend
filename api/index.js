@@ -26,6 +26,6 @@ app.get("/", (req, res) => {
     res.json({ message:  "API is running..." })
 });
 
-// const handler = serverless(app);
+const handler = serverless(app);
 
-module.exports = app;
+module.exports = handler;
