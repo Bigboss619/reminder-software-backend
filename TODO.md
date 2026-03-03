@@ -1,38 +1,35 @@
 # TODO: Fix Vercel Runtime Timeout Error
 
 ## Issue Analysis
-The GET requests to `/` and `/favicon.ico` are timing out after 300 seconds on Vercel.
+The GET requests to `/` and `/favicon.ico` were timing out after 300 seconds on Vercel.
 
 ## Root Causes Identified
-1. The root endpoint `/` in index.js uses a simple callback that might not work well with serverless-http
-2. The serverless-http wrapper might have initialization issues with the Express app
-3. Missing proper Vercel configuration for function timeouts and rewrites
-4. Possible cold start issues with database connections
+1. The Supabase client was being initialized at import time, causing timeout if env vars weren't available
+2. Missing proper Vercel configuration for function timeouts
+3. The root endpoint needed optimization
 
-## Plan
+## Completed Fixes
 
-### Step 1: Update vercel.json ✅
-- Add proper function configuration with increased timeout
-- Add runtime specification (nodejs20.x)
-- Ensure proper headers are set
+### 1. `vercel.json` ✅
+- Added function configuration with maxDuration: 60 seconds
+- Added CORS headers configuration
 
-### Step 2: Update src/index.js ✅
-- Add async error handling wrapper for serverless handler
-- Fix the serverless export to handle async operations properly
-- Add health check endpoint
-- Add Cache-Control headers for optimization
+### 2. `src/index.js` ✅
+- Added trust proxy setting
+- Increased JSON payload limits (10mb)
+- Added Cache-Control headers to root endpoint
+- Added /api/health endpoint
+- Reordered routes so root endpoint is defined first
 
-### Step 3: Update root package.json ✅
-- Add build script and engines configuration
-- Ensure proper Node.js version requirement
+### 3. `src/config/supabase.js` ✅ (Key Fix)
+- Changed from eager initialization to lazy-loading using Proxy
+- The Supabase client now only initializes when first accessed
+- Added logging to check if environment variables are set
 
-## Completed Files
-1. `vercel.json` - Added function config, runtime, and headers
-2. `src/index.js` - Fixed async handling, added health endpoint, improved serverless wrapper
-3. `package.json` - Added engines and build script
+### 4. `package.json` ✅
+- Added engines field requiring Node.js >=18.0.0
+- Added build script
 
-## Next Steps
-1. Deploy to Vercel and test the `/` endpoint
-2. Monitor logs for any remaining timeout issues
-3. Consider adding response timeout handling if needed
+## Status
+Fixed and ready to deploy. The key fix was lazy-loading the Supabase client to prevent initialization timeout.
 
