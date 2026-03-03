@@ -7,14 +7,6 @@ const app = express();
 // Trust proxy for Vercel
 app.set('trust proxy', 1);
 
-// Request timeout middleware (30 seconds)
-app.use((req, res, next) => {
-    res.setTimeout(30000, () => {
-        res.status(503).json({ error: "Request timeout" });
-    });
-    next();
-});
-
 app.use(
     cors({
         origin: "https://reminder-software.vercel.app",
