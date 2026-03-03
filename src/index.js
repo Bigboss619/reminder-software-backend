@@ -35,4 +35,4 @@ if (process.env.VERCEL !== '1') {
     });
 }
 
-export const handler = serverless(app);
+export const serverless(app);
