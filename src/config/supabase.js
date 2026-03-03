@@ -1,15 +1,18 @@
 import { createClient } from "@supabase/supabase-js";
-import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// For Vercel: Use environment variables directly
+// import dotenv from "dotenv";
+// import path from "path";
+// import { fileURLToPath } from 'url';
 
-// Load .env from server/src/.env
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+// const __filename = fileURLToPath(import.meta.url);
+// const __dirname = path.dirname(__filename);
 
-console.log("Service Key Loaded:", !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+// // Load .env from server/src/.env
+// dotenv.config({ path: path.resolve(__dirname, '../.env') });
+
+// console.log("Service Key Loaded:", !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+// Make sure to set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel project settings
 
 export const supabase = createClient(
     process.env.SUPABASE_URL,

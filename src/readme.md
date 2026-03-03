@@ -22,3 +22,8 @@ vin - text
 model - text
 year - integer
 color - text
+
+bash
+curl -X POST http://localhost:5000/api/send-notification \
+  -H "Content-Type: application/json" \
+  -d '{"type": "new_document", "document": {"asset_id": "vehicle-id", "name": "Insurance", "expiry_date": "2025-12-31"}}'

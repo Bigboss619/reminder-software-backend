@@ -1,11 +1,11 @@
 import express from 'express';
 import { supabase } from "../config/supabase.js";
-import { notifyVehicleEvent } from "../services/notification.service.js";
+import { notifyVehicleEvent, sendThreeMonthExpiryReminder } from "../services/notification.service.js";
 
 const router = express.Router();
 
-// Cron endpoint for Supabase (one-time execution)
-// Trigger: POST request from Supabase cron
+// Cron endpoint for daily reminders (existing functionality)
+// Trigger: POST request from Supabase cron or Vercel Cron
 router.post("/cron/reminders", async (req, res) => {
     try {
         console.log("Running reminder check via cron endpoint...");
@@ -85,5 +85,77 @@ router.post("/cron/reminders", async (req, res) => {
         });
     }
 });
+
+// New Cron endpoint for 3-month (90 days) expiry reminders
+// Runs every 5 minutes to check documents/maintenance expiring in 3 months
+router.post("/cron/expiry-reminder", async (req, res) => {
+    try {
+        console.log("Running 3-month (90 days) expiry reminder check...");
+        
+        const result = await sendThreeMonthExpiryReminder();
+        
+        if (result.success) {
+            return res.status(200).json({ 
+                success: true, 
+                message: "3-month expiry reminder job executed successfully",
+                emailsSent: result.emailsSent
+            });
+        } else {
+            return res.status(500).json({ 
+                success: false, 
+                message: "3-month expiry reminder job failed",
+                error: result.error
+            });
+        }
+    } catch (error) {
+        console.error("Error running 3-month expiry reminder cron:", error);
+        return res.status(500).json({ 
+            success: false, 
+            message: "Cron job failed",
+            error: error.message 
+        });
+    }
+});
+
+// ============================================
+// TEST ENDPOINTS (Commented out - Uncomment for testing)
+// ============================================
+// router.get("/cron/test-expiry-reminder", async (req, res) => {
+//     try {
+//         console.log("Manual test: Running 3-month expiry reminder check...");
+//         const result = await sendThreeMonthExpiryReminder();
+//         return res.status(200).json({ 
+//             success: true, 
+//             message: "Test completed",
+//             result: result
+//         });
+//     } catch (error) {
+//         console.error("Error running test cron:", error);
+//         return res.status(500).json({ 
+//             success: false, 
+//             message: "Test failed",
+//             error: error.message 
+//         });
+//     }
+// });
+
+// router.post("/cron/test-expiry-reminder", async (req, res) => {
+//     try {
+//         console.log("Manual test: Running 3-month expiry reminder check...");
+//         const result = await sendThreeMonthExpiryReminder();
+//         return res.status(200).json({ 
+//             success: true, 
+//             message: "Test completed",
+//             result: result
+//         });
+//     } catch (error) {
+//         console.error("Error running test cron:", error);
+//         return res.status(500).json({ 
+//             success: false, 
+//             message: "Test failed",
+//             error: error.message 
+//         });
+//     }
+// });
 
 export default router;
