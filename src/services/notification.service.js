@@ -151,28 +151,28 @@ export const sendEmailNotification = async ({ type, actionType, data }) => {
     }
 };
 
-// Cron job function for expiry/reminder check
+// Optimized Cron job function for expiry/reminder check
 // Checks for: overdue, due soon (30 days), and expiring in 3 months (90 days)
+// Processes in batches to avoid timeout
 export const sendThreeMonthExpiryReminder = async () => {
+    const MAX_RECORDS_PER_RUN = 50; // Process max 50 records per cron run
+    const BATCH_SIZE = 10; // Process 10 records at a time
+    
     try {
         console.log("========================================");
-        console.log("Running EXPIRY REMINDER CHECK...");
+        console.log("Running EXPIRY REMINDER CHECK (Optimized)...");
         console.log("Checking for: OVERDUE, DUE SOON (30 days), and 3-MONTH warnings");
+        console.log("Max records per run:", MAX_RECORDS_PER_RUN);
         console.log("========================================");
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const thirtyDaysFromNow = new Date(today);
-        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-
-        const threeMonthsFromNow = new Date(today);
-        threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
-
         let emailsSent = 0;
+        let recordsProcessed = 0;
 
         // ============================================
-        // CHECK DOCUMENTS
+        // CHECK DOCUMENTS (with limit)
         // ============================================
         console.log("\n--- Checking DOCUMENTS ---");
         
@@ -193,82 +193,94 @@ export const sendThreeMonthExpiryReminder = async () => {
                         staff_email
                     )
                 )
-            `);
+            `)
+            .limit(MAX_RECORDS_PER_RUN);
 
-        console.log(`Found ${documents?.length || 0} document records`);
+        console.log(`Found ${documents?.length || 0} document records (limited to ${MAX_RECORDS_PER_RUN})`);
 
-        for (const doc of documents || []) {
-            if (!doc.expiry_date) continue;
-
-            const expiryDate = new Date(doc.expiry_date);
-            const daysUntilExpiry = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+        // Process documents in batches
+        for (let i = 0; i < (documents?.length || 0); i += BATCH_SIZE) {
+            const batch = (documents || []).slice(i, i + BATCH_SIZE);
             
-            let shouldNotify = false;
-            let notificationType = "";
-            let title = "";
-            let subtitle = "";
+            // Process batch in parallel
+            await Promise.all(batch.map(async (doc) => {
+                if (!doc.expiry_date) return;
 
-            // OVERDUE - past expiry date
-            if (daysUntilExpiry < 0) {
-                shouldNotify = true;
-                notificationType = "OVERDUE";
-                title = "Document Overdue!";
-                subtitle = "Document Overdue Alert";
-            }
-            // DUE SOON - within 30 days
-            else if (daysUntilExpiry <= 30) {
-                shouldNotify = true;
-                notificationType = "DUE SOON";
-                title = "Document Expiring Soon";
-                subtitle = "Due Soon Alert";
-            }
-            // 3-MONTH WARNING - within 3 months but more than 30 days
-            else if (daysUntilExpiry <= 90) {
-                shouldNotify = true;
-                notificationType = "3-MONTH WARNING";
-                title = "Document Expiring in 3 Months";
-                subtitle = "3-Month Reminder";
-            }
+                const expiryDate = new Date(doc.expiry_date);
+                const daysUntilExpiry = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+                
+                let shouldNotify = false;
+                let notificationType = "";
+                let title = "";
+                let subtitle = "";
 
-            if (shouldNotify) {
-                const { vehicle, recipients } = await getRecipients(doc.asset_id);
-
-                if (!vehicle || recipients.length === 0) {
-                    console.log(`  Skipping ${doc.name} - no recipients found`);
-                    continue;
+                // OVERDUE - past expiry date
+                if (daysUntilExpiry < 0) {
+                    shouldNotify = true;
+                    notificationType = "OVERDUE";
+                    title = "Document Overdue!";
+                    subtitle = "Document Overdue Alert";
+                }
+                // DUE SOON - within 30 days
+                else if (daysUntilExpiry <= 30) {
+                    shouldNotify = true;
+                    notificationType = "DUE SOON";
+                    title = "Document Expiring Soon";
+                    subtitle = "Due Soon Alert";
+                }
+                // 3-MONTH WARNING - within 3 months but more than 30 days
+                else if (daysUntilExpiry <= 90) {
+                    shouldNotify = true;
+                    notificationType = "3-MONTH WARNING";
+                    title = "Document Expiring in 3 Months";
+                    subtitle = "3-Month Reminder";
                 }
 
-                let message = "";
-                if (notificationType === "OVERDUE") {
-                    message = `URGENT: Your document "${doc.name}" is OVERDUE by ${Math.abs(daysUntilExpiry)} days! Please renew immediately.`;
-                } else if (notificationType === "DUE SOON") {
-                    message = `Warning: Your document "${doc.name}" will expire in ${daysUntilExpiry} days. Please take necessary action.`;
-                } else {
-                    message = `Reminder: Your document "${doc.name}" will expire in ${daysUntilExpiry} days (approximately 3 months).`;
+                if (shouldNotify) {
+                    const { vehicle, recipients } = await getRecipients(doc.asset_id);
+
+                    if (!vehicle || recipients.length === 0) {
+                        console.log(`  Skipping ${doc.name} - no recipients found`);
+                        return;
+                    }
+
+                    let message = "";
+                    if (notificationType === "OVERDUE") {
+                        message = `URGENT: Your document "${doc.name}" is OVERDUE by ${Math.abs(daysUntilExpiry)} days! Please renew immediately.`;
+                    } else if (notificationType === "DUE SOON") {
+                        message = `Warning: Your document "${doc.name}" will expire in ${daysUntilExpiry} days. Please take necessary action.`;
+                    } else {
+                        message = `Reminder: Your document "${doc.name}" will expire in ${daysUntilExpiry} days (approximately 3 months).`;
+                    }
+
+                    const htmlContent = vehicleEmailTemplate({
+                        title,
+                        subtitle,
+                        vehicleName: vehicle.name,
+                        message,
+                        dueDate: doc.expiry_date,
+                        actionType: notificationType
+                    });
+
+                    await sendEmail({
+                        to: recipients,
+                        subject: `[${notificationType}] ${doc.name} - ${vehicle.name}`,
+                        html: htmlContent
+                    });
+
+                    emailsSent++;
+                    console.log(`  ✓ ${notificationType}: ${doc.name} (${vehicle.name}) - ${daysUntilExpiry} days`);
                 }
+                
+                recordsProcessed++;
+            }));
 
-                const htmlContent = vehicleEmailTemplate({
-                    title,
-                    subtitle,
-                    vehicleName: vehicle.name,
-                    message,
-                    dueDate: doc.expiry_date,
-                    actionType: notificationType
-                });
-
-                await sendEmail({
-                    to: recipients,
-                    subject: `[${notificationType}] ${doc.name} - ${vehicle.name}`,
-                    html: htmlContent
-                });
-
-                emailsSent++;
-                console.log(`  ✓ ${notificationType}: ${doc.name} (${vehicle.name}) - ${daysUntilExpiry} days`);
-            }
+            // Small delay between batches to avoid overwhelming the API
+            await new Promise(resolve => setTimeout(resolve, 100));
         }
 
         // ============================================
-        // CHECK MAINTENANCE RECORDS
+        // CHECK MAINTENANCE RECORDS (with limit)
         // ============================================
         console.log("\n--- Checking MAINTENANCE RECORDS ---");
         
@@ -289,86 +301,99 @@ export const sendThreeMonthExpiryReminder = async () => {
                         staff_email
                     )
                 )
-            `);
+            `)
+            .limit(MAX_RECORDS_PER_RUN);
 
-        console.log(`Found ${maintenance?.length || 0} maintenance records`);
+        console.log(`Found ${maintenance?.length || 0} maintenance records (limited to ${MAX_RECORDS_PER_RUN})`);
 
-        for (const maint of maintenance || []) {
-            if (!maint.next_due) continue;
+        // Process maintenance in batches
+        for (let i = 0; i < (maintenance?.length || 0); i += BATCH_SIZE) {
+            const batch = (maintenance || []).slice(i, i + BATCH_SIZE);
+            
+            // Process batch in parallel
+            await Promise.all(batch.map(async (maint) => {
+                if (!maint.next_due) return;
 
-            const dueDate = new Date(maint.next_due);
-            const daysUntilDue = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+                const dueDate = new Date(maint.next_due);
+                const daysUntilDue = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
 
-            let shouldNotify = false;
-            let notificationType = "";
-            let title = "";
-            let subtitle = "";
+                let shouldNotify = false;
+                let notificationType = "";
+                let title = "";
+                let subtitle = "";
 
-            // OVERDUE - past due date
-            if (daysUntilDue < 0) {
-                shouldNotify = true;
-                notificationType = "OVERDUE";
-                title = "Maintenance Overdue!";
-                subtitle = "Maintenance Overdue Alert";
-            }
-            // DUE SOON - within 30 days
-            else if (daysUntilDue <= 30) {
-                shouldNotify = true;
-                notificationType = "DUE SOON";
-                title = "Maintenance Due Soon";
-                subtitle = "Due Soon Alert";
-            }
-            // 3-MONTH WARNING - within 3 months but more than 30 days
-            else if (daysUntilDue <= 90) {
-                shouldNotify = true;
-                notificationType = "3-MONTH WARNING";
-                title = "Maintenance Due in 3 Months";
-                subtitle = "3-Month Reminder";
-            }
-
-            if (shouldNotify) {
-                const { vehicle, recipients } = await getRecipients(maint.asset_id);
-
-                if (!vehicle || recipients.length === 0) {
-                    console.log(`  Skipping ${maint.maintenance_type} - no recipients found`);
-                    continue;
+                // OVERDUE - past due date
+                if (daysUntilDue < 0) {
+                    shouldNotify = true;
+                    notificationType = "OVERDUE";
+                    title = "Maintenance Overdue!";
+                    subtitle = "Maintenance Overdue Alert";
+                }
+                // DUE SOON - within 30 days
+                else if (daysUntilDue <= 30) {
+                    shouldNotify = true;
+                    notificationType = "DUE SOON";
+                    title = "Maintenance Due Soon";
+                    subtitle = "Due Soon Alert";
+                }
+                // 3-MONTH WARNING - within 3 months but more than 30 days
+                else if (daysUntilDue <= 90) {
+                    shouldNotify = true;
+                    notificationType = "3-MONTH WARNING";
+                    title = "Maintenance Due in 3 Months";
+                    subtitle = "3-Month Reminder";
                 }
 
-                let message = "";
-                if (notificationType === "OVERDUE") {
-                    message = `URGENT: Your maintenance "${maint.maintenance_type}" is OVERDUE by ${Math.abs(daysUntilDue)} days! Please service immediately.`;
-                } else if (notificationType === "DUE SOON") {
-                    message = `Warning: Your maintenance "${maint.maintenance_type}" is due in ${daysUntilDue} days. Please schedule service.`;
-                } else {
-                    message = `Reminder: Your maintenance "${maint.maintenance_type}" is due in ${daysUntilDue} days (approximately 3 months).`;
+                if (shouldNotify) {
+                    const { vehicle, recipients } = await getRecipients(maint.asset_id);
+
+                    if (!vehicle || recipients.length === 0) {
+                        console.log(`  Skipping ${maint.maintenance_type} - no recipients found`);
+                        return;
+                    }
+
+                    let message = "";
+                    if (notificationType === "OVERDUE") {
+                        message = `URGENT: Your maintenance "${maint.maintenance_type}" is OVERDUE by ${Math.abs(daysUntilDue)} days! Please service immediately.`;
+                    } else if (notificationType === "DUE SOON") {
+                        message = `Warning: Your maintenance "${maint.maintenance_type}" is due in ${daysUntilDue} days. Please schedule service.`;
+                    } else {
+                        message = `Reminder: Your maintenance "${maint.maintenance_type}" is due in ${daysUntilDue} days (approximately 3 months).`;
+                    }
+
+                    const htmlContent = vehicleEmailTemplate({
+                        title,
+                        subtitle,
+                        vehicleName: vehicle.name,
+                        message,
+                        dueDate: maint.next_due,
+                        actionType: notificationType
+                    });
+
+                    await sendEmail({
+                        to: recipients,
+                        subject: `[${notificationType}] ${maint.maintenance_type} - ${vehicle.name}`,
+                        html: htmlContent
+                    });
+
+                    emailsSent++;
+                    console.log(`  ✓ ${notificationType}: ${maint.maintenance_type} (${vehicle.name}) - ${daysUntilDue} days`);
                 }
+                
+                recordsProcessed++;
+            }));
 
-                const htmlContent = vehicleEmailTemplate({
-                    title,
-                    subtitle,
-                    vehicleName: vehicle.name,
-                    message,
-                    dueDate: maint.next_due,
-                    actionType: notificationType
-                });
-
-                await sendEmail({
-                    to: recipients,
-                    subject: `[${notificationType}] ${maint.maintenance_type} - ${vehicle.name}`,
-                    html: htmlContent
-                });
-
-                emailsSent++;
-                console.log(`  ✓ ${notificationType}: ${maint.maintenance_type} (${vehicle.name}) - ${daysUntilDue} days`);
-            }
+            // Small delay between batches
+            await new Promise(resolve => setTimeout(resolve, 100));
         }
 
         console.log("\n========================================");
         console.log(`EXPIRY REMINDER JOB COMPLETED`);
+        console.log(`Total records processed: ${recordsProcessed}`);
         console.log(`Total emails sent: ${emailsSent}`);
         console.log("========================================\n");
 
-        return { success: true, emailsSent };
+        return { success: true, emailsSent, recordsProcessed };
     } catch (error) {
         console.error("Error in expiry reminder:", error);
         return { success: false, error: error.message };
