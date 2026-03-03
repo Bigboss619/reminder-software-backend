@@ -11,12 +11,22 @@ app.use(
     cors({
         origin: "https://reminder-software.vercel.app",
         methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization"],
         credentials: true
     })
 );
 
-// Explicitly handle OPTIONS preflight requests
-app.options("*", cors());
+// Handle preflight requests manually for Vercel
+app.use((req, res, next) => {
+    if (req.method === 'OPTIONS') {
+        res.set('Access-Control-Allow-Origin', 'https://reminder-software.vercel.app');
+        res.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+        res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        res.set('Access-Control-Allow-Credentials', 'true');
+        return res.status(204).end();
+    }
+    next();
+});
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
