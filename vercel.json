@@ -8,5 +8,22 @@
       "path": "/api/send-reminders/cron/expiry-reminder",
       "schedule": "0 7 * * *"
     }
+  ],
+  "functions": {
+    "src/index.js": {
+      "runtime": "nodejs20.x",
+      "maxDuration": 60
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://reminder-software.vercel.app"
+        }
+      ]
+    }
   ]
 }

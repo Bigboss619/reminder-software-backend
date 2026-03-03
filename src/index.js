@@ -10,7 +10,10 @@ import notificationRoutes from './routes/notification.routes.js';
 import errorMiddleware from './middlewares/error.midlleware.js'
 
 const app = express();
-// app.use(cors()); //allow requests from frontend
+
+// Trust proxy for Vercel
+app.set('trust proxy', 1);
+
 app.use(
   cors({
     origin: "https://reminder-software.vercel.app",
@@ -18,7 +21,8 @@ app.use(
     credentials: true
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 
 app.use("/api/assets", assetRoutes);
@@ -30,8 +34,15 @@ app.use("/api", notificationRoutes);
 
 app.use(errorMiddleware);
 
+// Root endpoint - optimized for serverless
 app.get("/", (req, res) => {
-    res.send("API is running...")
+    res.set('Cache-Control', 'public, max-age=60');
+    res.status(200).send("API is running...");
+});
+
+// Health check endpoint for Vercel
+app.get("/api/health", (req, res) => {
+    res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 // Only start server locally (not on Vercel)
@@ -42,4 +53,24 @@ if (process.env.VERCEL !== '1') {
     });
 }
 
-export default serverless(app);
+// Export for Vercel serverless - wrapped handler for better error handling
+const handler = serverless(app);
+
+export default async function (event, context) {
+    try {
+        return await handler(event, context);
+    } catch (error) {
+        console.error("Serverless handler error:", error);
+        return {
+            statusCode: 500,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': 'https://reminder-software.vercel.app'
+            },
+            body: JSON.stringify({
+                message: "Internal Server Error",
+                error: error.message
+            })
+        };
+    }
+};
