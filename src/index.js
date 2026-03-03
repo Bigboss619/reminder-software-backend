@@ -10,7 +10,14 @@ import notificationRoutes from './routes/notification.routes.js';
 import errorMiddleware from './middlewares/error.midlleware.js'
 
 const app = express();
-app.use(cors()); //allow requests from frontend
+// app.use(cors()); //allow requests from frontend
+app.use(
+  cors({
+    origin: "https://reminder-software.vercel.app",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true
+  })
+);
 app.use(express.json());
 
 
